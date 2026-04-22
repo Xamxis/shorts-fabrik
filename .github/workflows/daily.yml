@@ -2,8 +2,7 @@ name: Daily Shorts Factory
 
 on:
   schedule:
-    - cron: '40 11 * * *' # Läuft täglich 13:4
-  0 Uhr Wien
+    - cron: '40 11 * * *' # Läuft täglich 13:40 Uhr Wien
   workflow_dispatch: # Manueller Start-Button zum Testen
 
 jobs:
