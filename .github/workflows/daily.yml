@@ -25,6 +25,7 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          MAKE_WEBHOOK_URL: ${{ secrets.MAKE_WEBHOOK_URL }}
         run: |
           python << 'EOF'
           import requests, random, os, json, subprocess
@@ -34,7 +35,7 @@ jobs:
               print("1. Hole Reddit Post...")
               subs = ['Austria','de','FragReddit','todayilearned']
               sub = random.choice(subs)
-              headers = {'User-agent':'Mozilla/5.0'}
+              headers = {'User-agent':'Mozilla/5.0 (GitHub Actions; +https://github.com/your-repo)'}
               r = requests.get(f'https://www.reddit.com/r/{sub}/top.json?limit=10&t=day', headers=headers)
               r.raise_for_status()
               
@@ -51,25 +52,36 @@ jobs:
               reddit_title = "10 interessante Fakten über Österreich"
               print(f"Fallsback auf: {reddit_title}")
           
-          print("2. Lasse Groq Script schreiben...")
-          groq_res = requests.post('https://api.groq.com/openai/v1/chat/completions',
-              headers={'Authorization': f"Bearer {os.getenv('GROQ_API_KEY')}", 'Content-Type': 'application/json'},
-              json={
-                  "model": "llama3-8b-8192",
-                  "messages": [{"role":"user","content": f"""
-                  Du bist ein YouTube Shorts Autor. Mach aus diesem Thema ein 38-Sekunden Video-Script auf Deutsch.
-                  Thema: {reddit_title}
-                  Regeln: Hook in den ersten 2 Sekunden. 3 kurze Punkte. Ende mit 'Folg mir für Teil 2'.
-                  Antworte NUR mit JSON: {{"script":"...","videotitle":"...","tags":"..."}}
-                  """}],
-                  "temperature": 0.8, "response_format": {"type": "json_object"}
-              }).json()
-          
-          ai_data = json.loads(groq_res['choices'][0]['message']['content'])
-          script = ai_data['script']
-          videotitle = ai_data['videotitle']
-          tags = ai_data['tags']
-          print(f"Script fertig: {videotitle}")
+          try:
+              print("2. Lasse Groq Script schreiben...")
+              groq_res = requests.post('https://api.groq.com/openai/v1/chat/completions',
+                  headers={'Authorization': f"Bearer {os.getenv('GROQ_API_KEY')}", 'Content-Type': 'application/json'},
+                  json={
+                      "model": "llama3-8b-8192",
+                      "messages": [{"role":"user","content": f"""
+                      Du bist ein YouTube Shorts Autor. Mach aus diesem Thema ein 38-Sekunden Video-Script auf Deutsch.
+                      Thema: {reddit_title}
+                      Regeln: Hook in den ersten 2 Sekunden. 3 kurze Punkte. Ende mit 'Folg mir für Teil 2'.
+                      Antworte NUR mit JSON: {{"script":"...","videotitle":"...","tags":"..."}}
+                      """}],
+                      "temperature": 0.8, "response_format": {"type": "json_object"}
+                  })
+              groq_res.raise_for_status()
+              ai_data = groq_res.json()
+              if 'choices' not in ai_data or not ai_data['choices']:
+                  raise Exception("Groq API gab keine Antwort")
+                  
+              ai_content = json.loads(ai_data['choices'][0]['message']['content'])
+              script = ai_content['script']
+              videotitle = ai_content['videotitle']
+              tags = ai_content['tags']
+              print(f"Script fertig: {videotitle}")
+          except Exception as e:
+              print(f"Groq FEHLER: {e}")
+              script = "Hier ist ein Ersatz-Script..."
+              videotitle = "Österreich Fakten"
+              tags = "österreich,fakten"
+              print(f"Fallsback Script: {videotitle}")
           
           print("3. Erstelle Voice...")
           tts = gTTS(text=script, lang='de', slow=False)
@@ -115,12 +127,18 @@ jobs:
           print("7. Speichere Meta-Daten...")
           with open('meta.txt', 'w', encoding='utf-8') as f:
               f.write(f"{videotitle}\n{tags}\nBasierend auf r/{sub}: {reddit_title}")
-          print("FERTIG! Video ist bereit.")
+          
+          print("8. Lade zu Make.com hoch...")
+          with open('output.mp4', 'rb') as f:
+              response = requests.post(
+                  os.getenv('MAKE_WEBHOOK_URL'),
+                  files={'file': ('output.mp4', f, 'video/mp4')}
+              )
+              if response.status_code == 200:
+                  print("Video erfolgreich hochgeladen!")
+              else:
+                  print(f"Upload fehlgeschlagen: {response.text}")
+          print("FERTIG!")
           EOF
-      - name: Upload Video as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: short-video
-          path: output.mp4
       - name: Notify Success
-        run: echo "Video generiert! Lade es bei Make.com hoch."
+        run: echo "Video generiert und hochgeladen!"
