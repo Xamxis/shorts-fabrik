@@ -117,11 +117,10 @@ jobs:
               f.write(f"{videotitle}\n{tags}\nBasierend auf r/{sub}: {reddit_title}")
           print("FERTIG! Video ist bereit.")
           EOF
-      - name: Upload to Make.com
-        run: |
-          curl -X POST \
-            ${{ secrets.MAKE_WEBHOOK_URL }} \
-            -H 'Content-Type: multipart/form-data' \
-            -F 'file=@output.mp4'
+      - name: Upload Video as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: short-video
+          path: output.mp4
       - name: Notify Success
-        run: echo "Video uploaded! Check YouTube soon."
+        run: echo "Video generiert! Lade es bei Make.com hoch."
