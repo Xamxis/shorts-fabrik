@@ -1,6 +1,9 @@
+name: Daily Shorts Factory
+
 on:
   schedule:
-    - cron: '40 11 * * *' # Läuft täglich 10:00 Uhr Wien
+    - cron: '40 11 * * *' # Läuft täglich 13:4
+  0 Uhr Wien
   workflow_dispatch: # Manueller Start-Button zum Testen
 
 jobs:
@@ -19,7 +22,7 @@ jobs:
         run: |
           pip install requests gTTS==2.5.1
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          
+
       - name: Generate Video
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -105,3 +108,11 @@ jobs:
             f.write(f"{videotitle}\n{tags}\nBasierend auf r/{sub}: {reddit_title}")
           print("FERTIG! Video ist bereit.")
           EOF
+
+      - name: Upload fertiges Video als Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shorts-upload-${{ github.run_number }}
+          path: |
+            output.mp4
+            meta.txt
